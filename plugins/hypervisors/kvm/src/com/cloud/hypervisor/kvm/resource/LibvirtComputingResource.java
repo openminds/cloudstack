@@ -3755,10 +3755,14 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         SerialDef serial = new SerialDef("pty", null, (short)0);
         devices.addDevice(serial);
 
-//        if (vmTO.getType() != VirtualMachine.Type.User) {
-	VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null);
-	devices.addDevice(vserial);
- //       }
+        if (vmTO.getType() != VirtualMachine.Type.User) {
+            VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null, null);
+            devices.addDevice(vserial);
+        } else {
+// frank
+            VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null, "org.qemu.guest_agent.0");
+            devices.addDevice(vserial);
+        }
 
         VideoDef videoCard = new VideoDef(_videoHw, _videoRam);
         devices.addDevice(videoCard);
