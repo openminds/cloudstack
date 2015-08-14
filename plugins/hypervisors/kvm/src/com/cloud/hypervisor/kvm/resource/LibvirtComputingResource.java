@@ -1978,11 +1978,14 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         final SerialDef serial = new SerialDef("pty", null, (short)0);
         devices.addDevice(serial);
 
-// Openminds: we want a VirtIO Serial Interface for all VMs, not just SystemVMs
-//        if (vmTO.getType() != VirtualMachine.Type.User) {
-            final VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null);
+// Openminds: we want a VirtIO Serial Interface for user VMs as well
+        if (vmTO.getType() != VirtualMachine.Type.User) {
+            VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null, null);
             devices.addDevice(vserial);
-//        }
+        } else {
+            VirtioSerialDef vserial = new VirtioSerialDef(vmTO.getName(), null, "org.qemu.guest_agent.0");
+            devices.addDevice(vserial);
+        }
 
         final VideoDef videoCard = new VideoDef(_videoHw, _videoRam);
         devices.addDevice(videoCard);

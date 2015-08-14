@@ -1212,10 +1212,12 @@ public class LibvirtVMDef {
     public static class VirtioSerialDef {
         private final String _name;
         private String _path;
+        private String _vportname;
 
-        public VirtioSerialDef(String name, String path) {
+        public VirtioSerialDef(String name, String path, String vportname) {
             _name = name;
             _path = path;
+            _vportname = vportname;
         }
 
         @Override
@@ -1224,9 +1226,12 @@ public class LibvirtVMDef {
             if (_path == null) {
                 _path = "/var/lib/libvirt/qemu";
             }
+            if (_vportname == null) {
+                _vportname = _name + ".vport";
+            }
             virtioSerialBuilder.append("<channel type='unix'>\n");
             virtioSerialBuilder.append("<source mode='bind' path='" + _path + "/" + _name + ".agent'/>\n");
-            virtioSerialBuilder.append("<target type='virtio' name='" + _name + ".vport'/>\n");
+            virtioSerialBuilder.append("<target type='virtio' name='" + _vportname + "'/>\n");
             virtioSerialBuilder.append("<address type='virtio-serial'/>\n");
             virtioSerialBuilder.append("</channel>\n");
             return virtioSerialBuilder.toString();
