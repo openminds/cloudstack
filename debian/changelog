@@ -1,3 +1,9 @@
+cloudstack (4.5.1-openminds1) unstable; urgency=medium
+
+  * Openminds patches: firewall + kvm org.qemu.guest_agent.0
+
+ -- root <root@n-3g.static-37-72-162.as30961.net>  Fri, 14 Aug 2015 20:45:33 +0000
+
 cloudstack (4.5.1) unstable; urgency=low
 
   * Update the version to 4.5.1
