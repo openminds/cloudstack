@@ -61,6 +61,8 @@ import java.util.regex.Pattern;
 import javax.ejb.Local;
 import javax.naming.ConfigurationException;
 
+import org.apache.cloudstack.utils.linux.CPUStat;
+import org.apache.cloudstack.utils.linux.MemStat;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
@@ -463,6 +465,8 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     protected int _timeout;
     protected int _cmdsTimeout;
     protected int _stopTimeout;
+    private CPUStat _cpuStat = new CPUStat();
+    private MemStat _memStat = new MemStat();
 
     protected static final HashMap<DomainState, PowerState> s_powerStatesTable;
     static {
@@ -812,9 +816,6 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
         value = (String) params.get("kvmclock.disable");
         if (Boolean.parseBoolean(value)) {
-            _noKvmClock = true;
-        } else if(HypervisorType.LXC.equals(_hypervisorType) && (value == null)){
-            //Disable kvmclock by default for LXC
             _noKvmClock = true;
         }
 
@@ -3090,8 +3091,13 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 description for the instance to be used on the target host.
 
                 This is supported by libvirt-java from version 0.50.0
+
+                CVE-2015-3252: Get XML with sensitive information suitable for migration by using
+                               VIR_DOMAIN_XML_MIGRATABLE flag (value = 8)
+                               https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainXMLFlags
+
              */
-            xmlDesc = dm.getXMLDesc(0).replace(_privateIp, cmd.getDestinationIp());
+            xmlDesc = dm.getXMLDesc(8).replace(_privateIp, cmd.getDestinationIp());
 
             dconn = new Connect("qemu+tcp://" + cmd.getDestinationIp() + "/system");
 
@@ -3264,40 +3270,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
     }
 
     private Answer execute(GetHostStatsCommand cmd) {
-        final Script cpuScript = new Script("/bin/bash", s_logger);
-        cpuScript.add("-c");
-        cpuScript.add("idle=$(top -b -n 1| awk -F, '/^[%]*[Cc]pu/{$0=$4; gsub(/[^0-9.,]+/,\"\"); print }'); echo $idle");
+        double cpuUtil = _cpuStat.getCpuUsedPercent();
 
-        final OutputInterpreter.OneLineParser parser = new OutputInterpreter.OneLineParser();
-        String result = cpuScript.execute(parser);
-        if (result != null) {
-            s_logger.debug("Unable to get the host CPU state: " + result);
-            return new Answer(cmd, false, result);
-        }
-        double cpuUtil = (100.0D - Double.parseDouble(parser.getLine()));
-
-        long freeMem = 0;
-        final Script memScript = new Script("/bin/bash", s_logger);
-        memScript.add("-c");
-        memScript.add("freeMem=$(free|grep cache:|awk '{print $4}');echo $freeMem");
-        final OutputInterpreter.OneLineParser Memparser = new OutputInterpreter.OneLineParser();
-        result = memScript.execute(Memparser);
-        if (result != null) {
-            s_logger.debug("Unable to get the host Mem state: " + result);
-            return new Answer(cmd, false, result);
-        }
-        freeMem = Long.parseLong(Memparser.getLine());
-
-        Script totalMem = new Script("/bin/bash", s_logger);
-        totalMem.add("-c");
-        totalMem.add("free|grep Mem:|awk '{print $2}'");
-        final OutputInterpreter.OneLineParser totMemparser = new OutputInterpreter.OneLineParser();
-        result = totalMem.execute(totMemparser);
-        if (result != null) {
-            s_logger.debug("Unable to get the host Mem state: " + result);
-            return new Answer(cmd, false, result);
-        }
-        long totMem = Long.parseLong(totMemparser.getLine());
+        _memStat.refresh();
+        double totMem = _memStat.getTotal();
+        double freeMem = _memStat.getAvailable();
 
         Pair<Double, Double> nicStats = getNicStats(_publicBridgeName);
 
@@ -4539,7 +4516,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         String msg = null;
         try {
             dm = conn.domainLookupByName(vmName);
-            String vmDef = dm.getXMLDesc(0);
+            // Get XML Dump including the secure information such as VNC password
+            // By passing 1, or VIR_DOMAIN_XML_SECURE flag
+            // https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainXMLFlags
+            String vmDef = dm.getXMLDesc(1);
             LibvirtDomainXMLParser parser = new LibvirtDomainXMLParser();
             parser.parseDomainXML(vmDef);
             for (InterfaceDef nic : parser.getInterfaces()) {

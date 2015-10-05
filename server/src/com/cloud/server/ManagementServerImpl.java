@@ -37,9 +37,6 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
-import org.apache.cloudstack.api.command.user.snapshot.UpdateSnapshotPolicyCmd;
-import org.apache.commons.codec.binary.Base64;
-import org.apache.log4j.Logger;
 import org.apache.cloudstack.acl.ControlledEntity;
 import org.apache.cloudstack.affinity.AffinityGroupProcessor;
 import org.apache.cloudstack.affinity.dao.AffinityGroupVMMapDao;
@@ -408,6 +405,7 @@ import org.apache.cloudstack.api.command.user.snapshot.DeleteSnapshotPoliciesCmd
 import org.apache.cloudstack.api.command.user.snapshot.ListSnapshotPoliciesCmd;
 import org.apache.cloudstack.api.command.user.snapshot.ListSnapshotsCmd;
 import org.apache.cloudstack.api.command.user.snapshot.RevertSnapshotCmd;
+import org.apache.cloudstack.api.command.user.snapshot.UpdateSnapshotPolicyCmd;
 import org.apache.cloudstack.api.command.user.ssh.CreateSSHKeyPairCmd;
 import org.apache.cloudstack.api.command.user.ssh.DeleteSSHKeyPairCmd;
 import org.apache.cloudstack.api.command.user.ssh.ListSSHKeyPairsCmd;
@@ -511,6 +509,8 @@ import org.apache.cloudstack.storage.datastore.db.ImageStoreVO;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.utils.identity.ManagementServerNode;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.GetVncPortAnswer;
@@ -743,7 +743,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     @Inject
     private InstanceGroupDao _vmGroupDao;
     @Inject
-    private SSHKeyPairDao _sshKeyPairDao;
+    protected SSHKeyPairDao _sshKeyPairDao;
     @Inject
     private LoadBalancerDao _loadbalancerDao;
     @Inject
@@ -940,7 +940,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public boolean archiveEvents(ArchiveEventsCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         List<Long> ids = cmd.getIds();
         boolean result = true;
         List<Long> permittedAccountIds = new ArrayList<Long>();
@@ -967,7 +967,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public boolean deleteEvents(DeleteEventsCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         List<Long> ids = cmd.getIds();
         boolean result = true;
         List<Long> permittedAccountIds = new ArrayList<Long>();
@@ -1091,8 +1091,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>> listHostsForMigrationOfVM(Long vmId, Long startIndex, Long pageSize) {
-        // access check - only root admin can migrate VM
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         if (!_accountMgr.isRootAdmin(caller.getId())) {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Caller is not a root admin, permission denied to migrate the VM");
@@ -1269,8 +1268,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public Pair<List<? extends StoragePool>, List<? extends StoragePool>> listStoragePoolsForMigrationOfVolume(Long volumeId) {
-        // Access check - only root administrator can migrate volumes.
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         if (!_accountMgr.isRootAdmin(caller.getId())) {
             if (s_logger.isDebugEnabled()) {
                 s_logger.debug("Caller is not a root admin, permission denied to migrate the volume");
@@ -1762,7 +1760,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         List<Long> permittedAccounts = new ArrayList<Long>();
         ListProjectResourcesCriteria listProjectResourcesCriteria = null;
         if (isAllocated) {
-            Account caller = CallContext.current().getCallingAccount();
+            Account caller = getCaller();
 
             Ternary<Long, Boolean, ListProjectResourcesCriteria> domainIdRecursiveListProject = new Ternary<Long, Boolean, ListProjectResourcesCriteria>(
                     cmd.getDomainId(), cmd.isRecursive(), null);
@@ -2255,8 +2253,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             throw new InvalidParameterValueException("ROOT domain can not be edited with a new name");
         }
 
-        // check permissions
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         _accountMgr.checkAccess(caller, domain);
 
         // domain name is unique under the parent domain
@@ -3304,7 +3301,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public ArrayList<String> getCloudIdentifierResponse(long userId) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
 
         // verify that user exists
         User user = _accountMgr.getUserIncludingRemoved(userId);
@@ -3344,7 +3341,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     public Map<String, Object> listCapabilities(ListCapabilitiesCmd cmd) {
         Map<String, Object> capabilities = new HashMap<String, Object>();
 
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         boolean securityGroupsEnabled = false;
         boolean elasticLoadBalancerEnabled = false;
         boolean KVMSnapshotEnabled = false;
@@ -3410,7 +3407,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public InstanceGroupVO updateVmGroup(UpdateVMGroupCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         Long groupId = cmd.getId();
         String groupName = cmd.getGroupName();
 
@@ -3528,7 +3525,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public SSHKeyPair createSSHKeyPair(CreateSSHKeyPairCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         String accountName = cmd.getAccountName();
         Long domainId = cmd.getDomainId();
         Long projectId = cmd.getProjectId();
@@ -3552,7 +3549,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public boolean deleteSSHKeyPair(DeleteSSHKeyPairCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         String accountName = cmd.getAccountName();
         Long domainId = cmd.getDomainId();
         Long projectId = cmd.getProjectId();
@@ -3580,7 +3577,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         String name = cmd.getName();
         String fingerPrint = cmd.getFingerprint();
 
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
         List<Long> permittedAccounts = new ArrayList<Long>();
 
         Ternary<Long, Boolean, ListProjectResourcesCriteria> domainIdRecursiveListProject = new Ternary<Long, Boolean, ListProjectResourcesCriteria>(
@@ -3612,25 +3609,83 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     @Override
     @ActionEvent(eventType = EventTypes.EVENT_REGISTER_SSH_KEYPAIR, eventDescription = "registering ssh keypair", async = true)
     public SSHKeyPair registerSSHKeyPair(RegisterSSHKeyPairCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
-
-        Account owner = _accountMgr.finalizeOwner(caller, cmd.getAccountName(), cmd.getDomainId(), cmd.getProjectId());
-
-        SSHKeyPairVO s = _sshKeyPairDao.findByName(owner.getAccountId(), owner.getDomainId(), cmd.getName());
-        if (s != null) {
-            throw new InvalidParameterValueException("A key pair with name '" + cmd.getName() + "' already exists.");
-        }
+        Account owner = getOwner(cmd);
+        checkForKeyByName(cmd, owner);
+        checkForKeyByPublicKey(cmd, owner);
 
         String name = cmd.getName();
-        String publicKey = SSHKeysHelper.getPublicKeyFromKeyMaterial(cmd.getPublicKey());
+        String key = cmd.getPublicKey();
+
+        String publicKey = getPublicKeyFromKeyKeyMaterial(key);
+        String fingerprint = getFingerprint(publicKey);
+
+        return createAndSaveSSHKeyPair(name, fingerprint, publicKey, null, owner);
+    }
+
+    /**
+     * @param cmd
+     * @param owner
+     * @throws InvalidParameterValueException
+     */
+    private void checkForKeyByPublicKey(RegisterSSHKeyPairCmd cmd, Account owner) throws InvalidParameterValueException {
+        SSHKeyPairVO existingPair = _sshKeyPairDao.findByPublicKey(owner.getAccountId(), owner.getDomainId(), cmd.getPublicKey());
+        if (existingPair != null) {
+            throw new InvalidParameterValueException("A key pair with name '" + cmd.getPublicKey() + "' already exists for this account.");
+        }
+    }
+
+    /**
+     * @param cmd
+     * @param owner
+     * @throws InvalidParameterValueException
+     */
+    protected void checkForKeyByName(RegisterSSHKeyPairCmd cmd, Account owner) throws InvalidParameterValueException {
+        SSHKeyPairVO existingPair = _sshKeyPairDao.findByName(owner.getAccountId(), owner.getDomainId(), cmd.getName());
+        if (existingPair != null) {
+            throw new InvalidParameterValueException("A key pair with name '" + cmd.getName() + "' already exists for this account.");
+        }
+    }
+
+    /**
+     * @param publicKey
+     * @return
+     */
+    private String getFingerprint(String publicKey) {
+        String fingerprint = SSHKeysHelper.getPublicKeyFingerprint(publicKey);
+        return fingerprint;
+    }
+
+    /**
+     * @param key
+     * @return
+     * @throws InvalidParameterValueException
+     */
+    private String getPublicKeyFromKeyKeyMaterial(String key) throws InvalidParameterValueException {
+        String publicKey = SSHKeysHelper.getPublicKeyFromKeyMaterial(key);
 
         if (publicKey == null) {
             throw new InvalidParameterValueException("Public key is invalid");
         }
+        return publicKey;
+    }
 
-        String fingerprint = SSHKeysHelper.getPublicKeyFingerprint(publicKey);
+    /**
+     * @param cmd
+     * @return
+     */
+    protected Account getOwner(RegisterSSHKeyPairCmd cmd) {
+        Account caller = getCaller();
 
-        return createAndSaveSSHKeyPair(name, fingerprint, publicKey, null, owner);
+        Account owner = _accountMgr.finalizeOwner(caller, cmd.getAccountName(), cmd.getDomainId(), cmd.getProjectId());
+        return owner;
+    }
+
+    /**
+     * @return
+     */
+    protected Account getCaller() {
+        Account caller = CallContext.current().getCallingAccount();
+        return caller;
     }
 
     private SSHKeyPair createAndSaveSSHKeyPair(String name, String fingerprint, String publicKey, String privateKey, Account owner) {
@@ -3650,7 +3705,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public String getVMPassword(GetVMPasswordCmd cmd) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
 
         UserVmVO vm = _userVmDao.findById(cmd.getId());
         if (vm == null) {
@@ -3826,7 +3881,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     private VirtualMachine upgradeStoppedSystemVm(Long systemVmId, Long serviceOfferingId, Map<String, String> customparameters) {
-        Account caller = CallContext.current().getCallingAccount();
+        Account caller = getCaller();
 
         VMInstanceVO systemVm = _vmInstanceDao.findByIdTypes(systemVmId, VirtualMachine.Type.ConsoleProxy, VirtualMachine.Type.SecondaryStorageVm);
         if (systemVm == null) {

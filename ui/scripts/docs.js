@@ -1154,7 +1154,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpRegisterISOExtractable: {
-        desc: 'Whether the ISO is extractable or not',
+        desc: 'Whether the ISO is downloadable by users or not',
         externalLink: ''
     },
     helpRegisterISOPublic: {
@@ -1195,7 +1195,7 @@ cloudStack.docs = {
         externalLink: ''
     },
     helpRegisterTemplateExtractable: {
-        desc: 'Whether the template is extractable or not',
+        desc: 'Whether the template is downloadable by users or not',
         externalLink: ''
     },
     helpRegisterTemplateDynamicallyScalable: {
@@ -1245,6 +1245,14 @@ cloudStack.docs = {
     },
     helpLdapGroupName: {
         desc: 'The group name from which you want to import LDAP users',
+        externalLink: ''
+    },
+    helpSamlEnable: {
+        desc: 'Enable SAML Single Sign On for the user(s)',
+        externalLink: ''
+    },
+    helpSamlEntity: {
+        desc: 'Choose the SAML Identity Provider Entity ID with which you want to enable the Single Sign On for the user(s)',
         externalLink: ''
     },
     helpVpcOfferingName: {

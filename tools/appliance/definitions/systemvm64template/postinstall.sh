@@ -19,7 +19,7 @@ set -x
 
 ROOTPW=password
 HOSTNAME=systemvm
-CLOUDSTACK_RELEASE=4.5.1
+CLOUDSTACK_RELEASE=4.5.2
 
 add_backports () {
     sed -i '/backports/d' /etc/apt/sources.list
@@ -98,7 +98,7 @@ install_packages() {
   #installing 32 -bit architecture for running vhd-util
   dpkg --add-architecture i386
   apt-get update
-  apt-get --no-install-recommends -q -y --force-yes install links:i386 libuuid1:i386
+  apt-get --no-install-recommends -q -y --force-yes install links:i386 libuuid1:i386 libc6:i386
 
   apt-get --no-install-recommends -q -y --force-yes install radvd
 
@@ -260,6 +260,10 @@ configure_services() {
   chkconfig xl2tpd off
   chkconfig hv_kvp_daemon off
   chkconfig radvd off
+
+  # Disable services that slow down boot and are not used anyway
+  chkconfig x11-common off
+  chkconfig console-setup off
 }
 
 do_signature() {

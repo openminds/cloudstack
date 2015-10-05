@@ -72,6 +72,7 @@ import com.cloud.cluster.ManagementServerHostVO;
 import com.cloud.cluster.dao.ManagementServerHostDao;
 import com.cloud.configuration.Config;
 import com.cloud.configuration.ConfigurationManager;
+import com.cloud.configuration.ConfigurationManagerImpl;
 import com.cloud.configuration.ZoneConfig;
 import com.cloud.dc.ClusterVO;
 import com.cloud.dc.DataCenter;
@@ -676,13 +677,6 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
         }
     }
 
-    static final ConfigKey<Boolean> UseExternalDnsServers = new ConfigKey<Boolean>(Boolean.class, "use.external.dns", "Advanced", "false",
-            "Bypass internal dns, use external dns1 and dns2", true, ConfigKey.Scope.Zone, null);
-
-    static final ConfigKey<Boolean> routerVersionCheckEnabled = new ConfigKey<Boolean>("Advanced", Boolean.class, "router.version.check", "true",
-            "If true, router minimum required version is checked before sending command", false);
-
-
     @Override
     public boolean configure(final String name, final Map<String, Object> params) throws ConfigurationException {
 
@@ -744,14 +738,11 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
 
         _agentMgr.registerForHostEvents(new SshKeysDistriMonitor(_agentMgr, _hostDao, _configDao), true, false, false);
 
-        final boolean useLocalStorage = Boolean.parseBoolean(configs.get(DataCenter.SystemVMUseLocalStorageCK));
-        _offering = new ServiceOfferingVO("System Offering For Software Router", 1, _routerRamSize, _routerCpuMHz, null,
-                null, true, null, ProvisioningType.THIN, useLocalStorage, true, null, true, VirtualMachine.Type.DomainRouter, true);
-        _offering.setUniqueName(ServiceOffering.routerDefaultOffUniqueName);
-        _offering = _serviceOfferingDao.persistSystemServiceOffering(_offering);
-
+        List<ServiceOfferingVO> offerings = _serviceOfferingDao.createSystemServiceOfferings("System Offering For Software Router",
+                ServiceOffering.routerDefaultOffUniqueName, 1, _routerRamSize, _routerCpuMHz, null,
+                null, true, null, ProvisioningType.THIN, true, null, true, VirtualMachine.Type.DomainRouter, true);
         // this can sometimes happen, if DB is manually or programmatically manipulated
-        if (_offering == null) {
+        if (offerings == null || offerings.size() < 2) {
             final String msg = "Data integrity problem : System Offering For Software router VM has been removed?";
             s_logger.error(msg);
             throw new ConfigurationException(msg);
@@ -1683,7 +1674,8 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
 
                 Long offeringId = _networkOfferingDao.findById(guestNetwork.getNetworkOfferingId()).getServiceOfferingId();
                 if (offeringId == null) {
-                    offeringId = _offering.getId();
+                    ServiceOfferingVO serviceOffering = _serviceOfferingDao.findDefaultSystemOffering(ServiceOffering.routerDefaultOffUniqueName, ConfigurationManagerImpl.SystemVMUseLocalStorage.valueIn(dest.getDataCenter().getId()));
+                    offeringId = serviceOffering.getId();
                 }
 
                 PublicIp sourceNatIp = null;
@@ -3792,7 +3784,7 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
     protected boolean sendCommandsToRouter(final VirtualRouter router, final Commands cmds) throws AgentUnavailableException {
         if(!checkRouterVersion(router)){
             s_logger.debug("Router requires upgrade. Unable to send command to router:" + router.getId() + ", router template version : " + router.getTemplateVersion()
-                    + ", minimal required version : " + MinVRVersion);
+                    + ", minimal required version : " + NetworkOrchestrationService.MinVRVersion.valueIn(router.getDataCenterId()));
             throw new CloudRuntimeException("Unable to send command. Upgrade in progress. Please contact administrator.");
         }
         Answer[] answers = null;
@@ -4427,8 +4419,10 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
         if(router.getTemplateVersion() == null){
             return false;
         }
+        long dcid = router.getDataCenterId();
+        final String dcVersion = NetworkOrchestrationService.MinVRVersion.valueIn(dcid);
         final String trimmedVersion = Version.trimRouterVersion(router.getTemplateVersion());
-        return (Version.compare(trimmedVersion, MinVRVersion) >= 0);
+        return (Version.compare(trimmedVersion, dcVersion) >= 0);
     }
 
     private List<Long> rebootRouters(List<DomainRouterVO> routers){
@@ -4464,7 +4458,7 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
 
     @Override
     public ConfigKey<?>[] getConfigKeys() {
-        return new ConfigKey<?>[] {UseExternalDnsServers, routerVersionCheckEnabled, SetServiceMonitor, RouterAlertsCheckInterval};
+        return new ConfigKey<?>[] {UseExternalDnsServers, routerVersionCheckEnabled, SetServiceMonitor, RouterAlertsCheckInterval, RouterReprovisionOnOutOfBandMigration};
     }
 
     @Override
@@ -4477,32 +4471,41 @@ VirtualMachineGuru, Listener, Configurable, StateListener<State, VirtualMachine.
         State oldState = transition.getCurrentState();
         State newState = transition.getToState();
         VirtualMachine.Event event = transition.getEvent();
-        if (event == VirtualMachine.Event.FollowAgentPowerOnReport && newState == State.Running) {
-            if (vo.getType() == VirtualMachine.Type.DomainRouter) {
-                // opaque -> <hostId, powerHostId>
-                if (opaque != null && opaque instanceof Pair<?, ?>) {
-                    Pair<?, ?> pair = (Pair<?, ?>)opaque;
-                    Object first = pair.first();
-                    Object second = pair.second();
-                    // powerHostId cannot be null in case of out-of-band VM movement
-                    if (second != null && second instanceof Long) {
-                        Long powerHostId = (Long)second;
-                        Long hostId = null;
-                        if (first != null && first instanceof Long) {
-                            hostId = (Long)first;
-                        }
-                        // The following scenarios are due to out-of-band VM movement
-                        // 1. If VM is in stopped state in CS due to 'PowerMissing' report from old host (hostId is null) and then there is a 'PowerOn' report from new host
-                        // 2. If VM is in running state in CS and there is a 'PowerOn' report from new host
-                        if (hostId == null || (hostId.longValue() != powerHostId.longValue())) {
-                            s_logger.info("Schedule a router reboot task as router " + vo.getId() + " is powered-on out-of-band, need to reboot to refresh network rules");
-                            _rebootRouterExecutor.execute(new RebootTask(vo.getId()));
-                        }
-                    }
+        boolean reprovision_out_of_band = RouterReprovisionOnOutOfBandMigration.value();
+        if (
+            (vo.getType() == VirtualMachine.Type.DomainRouter) &&
+            ((oldState == State.Stopped) || (reprovision_out_of_band && isOutOfBandMigrated(opaque))) &&
+            (event == VirtualMachine.Event.FollowAgentPowerOnReport) &&
+            (newState == State.Running)) {
+                s_logger.info("Schedule a router reboot task as router " + vo.getId() + " is powered-on out-of-band. we need to reboot to refresh network rules");
+                _executor.schedule(new RebootTask(vo.getId()), 1000, TimeUnit.MICROSECONDS);
+        } else {
+            if (isOutOfBandMigrated(opaque) && (vo.getType() == VirtualMachine.Type.DomainRouter)) {
+                final String title = "Router has been migrated out of band: " + vo.getInstanceName();
+                final String context =
+                        "An out of band migration of router " + vo.getInstanceName() + "(" + vo.getUuid() + ") was detected. No automated action was performed.";
+                _alertMgr.sendAlert(AlertManager.AlertType.ALERT_TYPE_DOMAIN_ROUTER, vo.getDataCenterId(), vo.getPodIdToDeployIn(), title, context);
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isOutOfBandMigrated(Object opaque) {
+        if (opaque != null && opaque instanceof Pair<?, ?>) {
+            Pair<?, ?> pair = (Pair<?, ?>)opaque;
+            Object first = pair.first();
+            Object second = pair.second();
+            if (first != null && second != null && first instanceof Long && second instanceof Long) {
+                Long hostId = (Long)first;
+                Long powerHostId = (Long)second;
+                // If VM host known to CS is different from 'PowerOn' report host, then it is out-of-band movement
+                if (hostId.longValue() != powerHostId.longValue()) {
+                    return true;
                 }
             }
         }
-        return true;
+        return false;
     }
 
     protected class RebootTask extends ManagedContextRunnable {

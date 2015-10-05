@@ -63,7 +63,6 @@ intelligent IaaS cloud implementation.
 Summary:   CloudStack management server UI
 Requires: %{_tomcatversion}
 Requires: %{_javaversion}
-Conflicts: java-1.8.0-openjdk
 Requires: python
 Requires: bash
 Requires: bzip2
@@ -118,7 +117,6 @@ The Apache CloudStack files shared between agent and management server
 Summary: CloudStack Agent for KVM hypervisors
 Requires: openssh-clients
 Requires: %{_javaversion}
-Conflicts: java-1.8.0-openjdk
 Requires: %{name}-common = %{_ver}
 Requires: libvirt
 Requires: bridge-utils
@@ -158,7 +156,6 @@ The CloudStack baremetal agent
 %package usage
 Summary: CloudStack Usage calculation server
 Requires: %{_javaversion}
-Conflicts: java-1.8.0-openjdk
 Requires: jsvc
 Requires: jakarta-commons-daemon
 Requires: jakarta-commons-daemon-jsvc
@@ -241,6 +238,7 @@ mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/%{name}/mnt
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/%{name}/management
 mkdir -p ${RPM_BUILD_ROOT}%{_initrddir}
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig
+mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/profile.d
 
 # Common
 mkdir -p ${RPM_BUILD_ROOT}%{_datadir}/%{name}-common/scripts
@@ -348,6 +346,7 @@ install -D agent/target/transformed/cloud-setup-agent ${RPM_BUILD_ROOT}%{_bindir
 install -D agent/target/transformed/cloudstack-agent-upgrade ${RPM_BUILD_ROOT}%{_bindir}/%{name}-agent-upgrade
 install -D agent/target/transformed/libvirtqemuhook ${RPM_BUILD_ROOT}%{_datadir}/%{name}-agent/lib/libvirtqemuhook
 install -D agent/target/transformed/cloud-ssh ${RPM_BUILD_ROOT}%{_bindir}/%{name}-ssh
+install -D agent/target/transformed/cloudstack-agent-profile.sh ${RPM_BUILD_ROOT}%{_sysconfdir}/profile.d/%{name}-agent-profile.sh
 install -D plugins/hypervisors/kvm/target/cloud-plugin-hypervisor-kvm-%{_maventag}.jar ${RPM_BUILD_ROOT}%{_datadir}/%name-agent/lib/cloud-plugin-hypervisor-kvm-%{_maventag}.jar
 cp plugins/hypervisors/kvm/target/dependencies/*  ${RPM_BUILD_ROOT}%{_datadir}/%{name}-agent/lib
 
@@ -596,7 +595,6 @@ fi
 %dir %attr(0770,root,cloud) %{_localstatedir}/cache/%{name}/management/work
 %dir %attr(0770,root,cloud) %{_localstatedir}/cache/%{name}/management/temp
 %dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/management
-%dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/agent
 %dir %attr(0770,root,cloud) %{_localstatedir}/log/%{name}/awsapi
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}-management
 %config(noreplace) %attr(0640,root,cloud) %{_sysconfdir}/%{name}/management/db.properties
@@ -652,6 +650,7 @@ fi
 %attr(0755,root,root) %{_bindir}/%{name}-agent-upgrade
 %attr(0755,root,root) %{_bindir}/%{name}-ssh
 %attr(0755,root,root) %{_sysconfdir}/init.d/%{name}-agent
+%attr(0644,root,root) %{_sysconfdir}/profile.d/%{name}-agent-profile.sh
 %attr(0755,root,root) %{_datadir}/%{name}-common/scripts/network/cisco
 %config(noreplace) %{_sysconfdir}/%{name}/agent
 %dir %{_localstatedir}/log/%{name}/agent
