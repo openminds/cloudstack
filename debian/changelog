@@ -1,4 +1,10 @@
-cloudstack (4.5.2-openminds1ubuntu1) UNRELEASED; urgency=medium
+cloudstack (4.5.2-openminds3) unstable; urgency=medium
+
+  * don't reboot on loss of NFS primary storage in kvm
+
+ -- root <root@n-3g.static-37-72-162.as30961.net>  Tue, 06 Oct 2015 11:28:56 +0000
+
+cloudstack (4.5.2-openminds2) unstable; urgency=medium
 
   * Disables the strict ip-matching in ebtables. This opens a can of security worms, but it's the only way
     to allow floating ips (secondary ips that are not unique), without a major refactor
