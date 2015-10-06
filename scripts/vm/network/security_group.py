@@ -273,8 +273,11 @@ def default_ebtables_rules(vm_name, vm_ip, vm_mac, vif):
         # -s ! 52:54:0:56:44:32 -j DROP
         execute("ebtables -t nat -A PREROUTING -i " + vif + " -j " + vmchain_in)
         execute("ebtables -t nat -A POSTROUTING -o " + vif + " -j " + vmchain_out)
-        execute("ebtables -t nat -A " + vmchain_in_ips + " -j DROP")
-        execute("ebtables -t nat -A " + vmchain_out_ips + " -j DROP")
+
+# this allows a vm to arp for ips that are not in it's list, but adding those rules prevent floating ips
+# the real solution would be to allow non-unique secondary ips
+#        execute("ebtables -t nat -A " + vmchain_in_ips + " -j DROP")
+#        execute("ebtables -t nat -A " + vmchain_out_ips + " -j DROP")
     except:
         logging.debug("Failed to program default rules")
         return 'false'
