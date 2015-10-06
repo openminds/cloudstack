@@ -158,7 +158,8 @@ then
   /usr/bin/logger -t heartbeat "kvmheartbeat.sh rebooted system because it was unable to write the heartbeat to the storage."
   sync &
   sleep 5
-  echo b > /proc/sysrq-trigger
+  echo "Cloudstack KVM host $HOSTNAME lost primary NFS. Would reboot! `date`" | mail -s "$HOSTNAME kvm nfs error" tech@openminds.be
+  #echo b > /proc/sysrq-trigger
   exit $?
 else
   write_hbLog 
